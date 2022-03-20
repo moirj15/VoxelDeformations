@@ -1,4 +1,6 @@
 #include "utils.h"
+#include "glm/vec3.hpp"
+#include "glm/gtx/compatibility.hpp"
 
 #include <SDL2/SDL.h>
 #include <focus.hpp>
@@ -146,6 +148,11 @@ class RenderSystem final : public System {
     void ReadEventQueue() override {}
     void RunFrame() override {}
 };
+
+glm::vec3 QuadraticBezier(const f32 t, const glm::vec3 &p0, const glm::vec3 &p1, const glm::vec3 &p2)
+{
+    return glm::mix(glm::mix(p0, p1, t), glm::mix(p1, p2, t), t);
+}
 
 void RunSystems()
 {
