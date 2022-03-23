@@ -1,14 +1,16 @@
-#include "utils.h"
-#include "glm/vec3.hpp"
 #include "glm/gtx/compatibility.hpp"
+#include "glm/vec3.hpp"
+#include "utils.h"
 
 #include <SDL2/SDL.h>
 #include <focus.hpp>
 #include <glm/vec2.hpp>
+#include <memory>
+#include <optional>
 #include <unordered_set>
 #include <variant>
-#include <memory>
 
+#if 0
 /*
  * I'm thinking I'll make an input queue and just throw any inputs into there.
  *
@@ -119,16 +121,59 @@ class InputManager
     void SubscribeToMouseMove(u32 channel);
     void SubscribeToMouseDrag(u32 channel);
 };
+#endif
+
+static bool should_quit = false;
+
+static glm::vec2 control_points[3] = {
+    glm::vec2(-0.75, -0.75),
+    glm::vec2(0.75, -0.75),
+    glm::vec2(0, 0.75),
+};
+constexpr f32 POINT_SIZE = 5.0f;
+
+std::optional<u32> PointHitByMouse(const glm::vec2 &mouse_pos)
+{
+    for (u32 i = 0; i < 3; i++) {
+        const auto &point = control_points[i];
+        const glm::vec2 lower_left = point - (POINT_SIZE / 2.0f);
+        const glm::vec2 upper_right = point + (POINT_SIZE / 2.0f);
+        if (glm::all(glm::lessThanEqual(lower_left, mouse_pos))
+            && glm::all(glm::greaterThanEqual(upper_right, mouse_pos))) {
+            return i;
+        }
+    }
+    return {};
+}
+
+static std::optional<u32> clicked_point;
+constexpr s32 screen_width = 720;
+constexpr s32 screen_height = 640;
+
+glm::vec2 MouseToScreenSpace(const glm::vec2 &mouse_pos)
+{
+    return {(screen_width - (screen_width / 2)) / (screen_width / 2),
+        (screen_height - (screen_height / 2)) / (screen_height / 2)};
+}
 
 void ConsumeInput()
 {
     SDL_Event e;
     while (SDL_PollEvent(&e) > 0) {
         if (e.type == SDL_QUIT) {
+            should_quit = true;
+            return;
+        } else if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
+            if (clicked_point) {
+                control_points[clicked_point.value()] = MouseToScreenSpace({e.button.x, e.button.y});
+            } else {
+                clicked_point = PointHitByMouse({e.button.x, e.button.y});
+            }
         }
     }
 }
 
+#if 0
 class System {
   public:
     virtual ~System() = default;
@@ -148,6 +193,7 @@ class RenderSystem final : public System {
     void ReadEventQueue() override {}
     void RunFrame() override {}
 };
+#endif
 
 glm::vec3 QuadraticBezier(const f32 t, const glm::vec3 &p0, const glm::vec3 &p1, const glm::vec3 &p2)
 {
@@ -182,14 +228,15 @@ constexpr u32 point_size = 10;
 int main(int argc, char **argv)
 {
     device = focus::Device::Init(focus::RendererAPI::OpenGL);
-    window = device->MakeWindow(1920, 1080);
+    window = device->MakeWindow(screen_width, screen_height);
 
     auto line_shader = device->CreateShaderFromSource("line_shader", utils::ReadEntireFileAsString("shaders/line.vert"),
         utils::ReadEntireFileAsString("shaders/line.frag"));
 
     focus::PipelineState pipeline_state = {
         .shader = line_shader,
-        .line_width = 5.0f,
+        // TODO: uncomment when focus is updated
+        //        .line_width = 5.0f,
     };
 
     line_pipeline = device->CreatePipeline(pipeline_state);
@@ -219,7 +266,7 @@ int main(int argc, char **argv)
     };
 
     InputManager input_manager;
-    while (true) {
+    while (!should_quit) {
         input_manager.ConsumeInput();
         RunSystems();
         RenderFrame();
