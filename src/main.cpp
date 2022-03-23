@@ -127,8 +127,8 @@ static bool should_quit = false;
 
 static glm::vec2 control_points[3] = {
     glm::vec2(-0.75, -0.75),
-    glm::vec2(0.75, -0.75),
     glm::vec2(0, 0.75),
+    glm::vec2(0.75, -0.75),
 };
 constexpr f32 POINT_SIZE = 5.0f;
 
@@ -195,9 +195,18 @@ class RenderSystem final : public System {
 };
 #endif
 
-glm::vec3 QuadraticBezier(const f32 t, const glm::vec3 &p0, const glm::vec3 &p1, const glm::vec3 &p2)
+glm::vec2 QuadraticBezier(const f32 t, const glm::vec2 &p0, const glm::vec2 &p1, const glm::vec2 &p2)
 {
     return glm::mix(glm::mix(p0, p1, t), glm::mix(p1, p2, t), t);
+}
+
+std::vector<glm::vec2> CreateBezierLines()
+{
+    std::vector<glm::vec2> points;
+    for (u32 i = 0; i < 100; i++) {
+        points.emplace_back(QuadraticBezier(static_cast<f32>(i) / 100.0f, control_points[0], control_points[1], control_points[2]));
+    }
+    return points;
 }
 
 void RunSystems()
@@ -205,43 +214,29 @@ void RunSystems()
 }
 
 static focus::Device *device = nullptr;
-static focus::SceneState scene_state;
-static focus::Pipeline line_pipeline;
 static focus::Window window;
 
-void RenderFrame()
-{
-    device->ClearBackBuffer({});
-    device->BeginPass("Triangle pass");
+static focus::SceneState line_scene_state;
+static focus::Pipeline line_pipeline;
 
-    device->BindSceneState(scene_state);
-    device->BindPipeline(line_pipeline);
-    device->Draw(focus::Primitive::Lines, 0, 2);
-
-    device->EndPass();
-
-    device->SwapBuffers(window);
-}
+static focus::SceneState point_scene_state;
+static focus::Pipeline point_pipeline;
 
 constexpr u32 point_size = 10;
 
-int main(int argc, char **argv)
+void InitLineSystem()
 {
-    device = focus::Device::Init(focus::RendererAPI::OpenGL);
-    window = device->MakeWindow(screen_width, screen_height);
-
     auto line_shader = device->CreateShaderFromSource("line_shader", utils::ReadEntireFileAsString("shaders/line.vert"),
         utils::ReadEntireFileAsString("shaders/line.frag"));
 
     focus::PipelineState pipeline_state = {
         .shader = line_shader,
-        // TODO: uncomment when focus is updated
-        //        .line_width = 5.0f,
+        .line_width = 5.0f,
     };
 
     line_pipeline = device->CreatePipeline(pipeline_state);
 
-    float line[] = {-1.0, -1.0, 1.0, 1.0};
+//    float line[] = {-1.0, -1.0, 1.0, 1.0};
 
     // clang-format off
     float mvp[] = {
@@ -254,21 +249,91 @@ int main(int argc, char **argv)
     };
     // clang-format on
 
+
     focus::VertexBufferLayout vb_layout("Input");
     vb_layout.Add("aPosition", focus::VarType::Float2);
 
     focus::ConstantBufferLayout cb_layout("Constants");
     cb_layout.Add("color and mvp", focus::VarType::Float4x4);
 
-    scene_state = {
-        .vb_handles = {device->CreateVertexBuffer(vb_layout, line, sizeof(line))},
+    auto line = CreateBezierLines();
+
+    line_scene_state = {
+        .vb_handles = {device->CreateVertexBuffer(vb_layout, line.data(), line.size() * sizeof(glm::vec2))},
         .cb_handles = {device->CreateConstantBuffer(cb_layout, mvp, sizeof(mvp))},
     };
+}
 
-    InputManager input_manager;
+void InitPointSystem()
+{
+    auto point_shader = device->CreateShaderFromSource("point_shader",
+        utils::ReadEntireFileAsString("shaders/point.vert"), utils::ReadEntireFileAsString("shaders/point.frag"));
+
+    focus::PipelineState pipeline_state = {
+        .shader = point_shader,
+    };
+
+    point_pipeline = device->CreatePipeline(pipeline_state);
+
+    // clang-format off
+    float mvp[] = {
+        1.0f, 0.0f, 0.0f, // color + padding float
+        10.0f, // point size
+        // mvp matrix
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+    };
+    // clang-format on
+
+    focus::VertexBufferLayout vb_layout("Input");
+    vb_layout.Add("aPosition", focus::VarType::Float2);
+
+    focus::ConstantBufferLayout cb_layout("Constants");
+    cb_layout.Add("color size and mvp", focus::VarType::Float4x4);
+
+    point_scene_state = {
+        .vb_handles = {device->CreateVertexBuffer(vb_layout, control_points, sizeof(control_points))},
+        .cb_handles = {device->CreateConstantBuffer(cb_layout, mvp, sizeof(mvp))},
+    };
+}
+
+void RenderFrame()
+{
+    device->ClearBackBuffer({});
+    device->BeginPass("Line Pass");
+
+    device->BindSceneState(line_scene_state);
+    device->BindPipeline(line_pipeline);
+    device->Draw(focus::Primitive::Lines, 0, 100);
+
+    device->EndPass();
+
+    device->BeginPass("Point Pass");
+
+    device->BindSceneState(point_scene_state);
+    device->BindPipeline(point_pipeline);
+    device->Draw(focus::Primitive::Points, 0, 3);
+
+    device->EndPass();
+
+    device->SwapBuffers(window);
+}
+
+int main(int argc, char **argv)
+{
+    device = focus::Device::Init(focus::RendererAPI::OpenGL);
+    window = device->MakeWindow(screen_width, screen_height);
+
+    InitLineSystem();
+    InitPointSystem();
+
+    //    InputManager input_manager;
     while (!should_quit) {
-        input_manager.ConsumeInput();
+        ConsumeInput();
         RunSystems();
         RenderFrame();
     }
+    return 0;
 }
