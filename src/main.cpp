@@ -209,9 +209,6 @@ std::vector<glm::vec2> CreateBezierLines()
     return points;
 }
 
-void RunSystems()
-{
-}
 
 static focus::Device *device = nullptr;
 static focus::Window window;
@@ -224,11 +221,22 @@ static focus::Pipeline point_pipeline;
 
 constexpr u32 point_size = 10;
 
+focus::DynamicVertexBuffer control_point_buffer;
+focus::DynamicVertexBuffer line_buffer;
+
+void RunSystems()
+{
+    device->UpdateDynamicVertexBuffer(control_point_buffer, control_points, sizeof(control_points));
+    device->UpdateDynamicVertexBuffer(line_buffer, )
+}
+
+
 void InitLineSystem()
 {
     auto line_shader = device->CreateShaderFromSource("line_shader", utils::ReadEntireFileAsString("shaders/line.vert"),
         utils::ReadEntireFileAsString("shaders/line.frag"));
 
+    // TODO: implement a line rendering pipeline
     focus::PipelineState pipeline_state = {
         .shader = line_shader,
         .line_width = 5.0f,
@@ -306,7 +314,7 @@ void RenderFrame()
 
     device->BindSceneState(line_scene_state);
     device->BindPipeline(line_pipeline);
-    device->Draw(focus::Primitive::Lines, 0, 100);
+    device->Draw(focus::Primitive::LineStrip, 0, 100);
 
     device->EndPass();
 
