@@ -132,28 +132,34 @@ static glm::vec2 control_points[3] = {
 };
 constexpr f32 POINT_SIZE = 5.0f;
 
-std::optional<u32> PointHitByMouse(const glm::vec2 &mouse_pos)
+static std::optional<u32> clicked_point;
+constexpr s32 screen_width = 720;
+constexpr s32 screen_height = 640;
+
+glm::vec2 ScreenSpaceToNDC(const glm::vec2 &mouse_pos)
+{
+    return {(mouse_pos.x - (screen_width / 2)) / (screen_width / 2),
+        ((screen_height - mouse_pos.y) - (screen_height / 2)) / (screen_height / 2)};
+}
+
+glm::ivec2 NDCToScreenSpace(const glm::vec2 &screen_space)
+{
+    return {(screen_space.x * (screen_width / 2.0f)) + (screen_width / 2.0f),
+        (-screen_space.y * (screen_height / 2.0f)) + (screen_height / 2.0f)};
+}
+
+std::optional<u32> PointHitByMouse(const glm::ivec2 &mouse_pos)
 {
     for (u32 i = 0; i < 3; i++) {
-        const auto &point = control_points[i];
-        const glm::vec2 lower_left = point - (POINT_SIZE / 2.0f);
-        const glm::vec2 upper_right = point + (POINT_SIZE / 2.0f);
+        const auto &point = NDCToScreenSpace(control_points[i]);
+        const auto lower_left = point - (static_cast<s32>(POINT_SIZE) / 2);
+        const auto upper_right = point + (static_cast<s32>(POINT_SIZE) / 2);
         if (glm::all(glm::lessThanEqual(lower_left, mouse_pos))
             && glm::all(glm::greaterThanEqual(upper_right, mouse_pos))) {
             return i;
         }
     }
     return {};
-}
-
-static std::optional<u32> clicked_point;
-constexpr s32 screen_width = 720;
-constexpr s32 screen_height = 640;
-
-glm::vec2 MouseToScreenSpace(const glm::vec2 &mouse_pos)
-{
-    return {(screen_width - (screen_width / 2)) / (screen_width / 2),
-        (screen_height - (screen_height / 2)) / (screen_height / 2)};
 }
 
 void ConsumeInput()
@@ -164,11 +170,12 @@ void ConsumeInput()
             should_quit = true;
             return;
         } else if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
-            if (clicked_point) {
-                control_points[clicked_point.value()] = MouseToScreenSpace({e.button.x, e.button.y});
-            } else {
-                clicked_point = PointHitByMouse({e.button.x, e.button.y});
-            }
+            clicked_point = PointHitByMouse({e.button.x, e.button.y});
+        } else if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
+            clicked_point.reset();
+        }
+        if (clicked_point) {
+            control_points[clicked_point.value()] = ScreenSpaceToNDC({e.button.x, e.button.y});
         }
     }
 }
@@ -204,11 +211,11 @@ std::vector<glm::vec2> CreateBezierLines()
 {
     std::vector<glm::vec2> points;
     for (u32 i = 0; i < 100; i++) {
-        points.emplace_back(QuadraticBezier(static_cast<f32>(i) / 100.0f, control_points[0], control_points[1], control_points[2]));
+        points.emplace_back(
+            QuadraticBezier(static_cast<f32>(i) / 100.0f, control_points[0], control_points[1], control_points[2]));
     }
     return points;
 }
-
 
 static focus::Device *device = nullptr;
 static focus::Window window;
@@ -227,9 +234,9 @@ focus::DynamicVertexBuffer line_buffer;
 void RunSystems()
 {
     device->UpdateDynamicVertexBuffer(control_point_buffer, control_points, sizeof(control_points));
-    device->UpdateDynamicVertexBuffer(line_buffer, )
+    auto line_points = CreateBezierLines();
+    device->UpdateDynamicVertexBuffer(line_buffer, line_points.data(), line_points.size() * sizeof(glm::vec2));
 }
-
 
 void InitLineSystem()
 {
@@ -244,7 +251,7 @@ void InitLineSystem()
 
     line_pipeline = device->CreatePipeline(pipeline_state);
 
-//    float line[] = {-1.0, -1.0, 1.0, 1.0};
+    //    float line[] = {-1.0, -1.0, 1.0, 1.0};
 
     // clang-format off
     float mvp[] = {
@@ -257,7 +264,6 @@ void InitLineSystem()
     };
     // clang-format on
 
-
     focus::VertexBufferLayout vb_layout("Input");
     vb_layout.Add("aPosition", focus::VarType::Float2);
 
@@ -266,8 +272,9 @@ void InitLineSystem()
 
     auto line = CreateBezierLines();
 
+    line_buffer = device->CreateDynamicVertexBuffer(vb_layout, line.data(), line.size() * sizeof(glm::vec2));
     line_scene_state = {
-        .vb_handles = {device->CreateVertexBuffer(vb_layout, line.data(), line.size() * sizeof(glm::vec2))},
+        .dynamic_vb_handles = {line_buffer},
         .cb_handles = {device->CreateConstantBuffer(cb_layout, mvp, sizeof(mvp))},
     };
 }
@@ -301,8 +308,9 @@ void InitPointSystem()
     focus::ConstantBufferLayout cb_layout("Constants");
     cb_layout.Add("color size and mvp", focus::VarType::Float4x4);
 
+    control_point_buffer = device->CreateDynamicVertexBuffer(vb_layout, control_points, sizeof(control_points));
     point_scene_state = {
-        .vb_handles = {device->CreateVertexBuffer(vb_layout, control_points, sizeof(control_points))},
+        .dynamic_vb_handles = {control_point_buffer},
         .cb_handles = {device->CreateConstantBuffer(cb_layout, mvp, sizeof(mvp))},
     };
 }
