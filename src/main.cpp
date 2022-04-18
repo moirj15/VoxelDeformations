@@ -138,8 +138,8 @@ constexpr s32 screen_height = 640;
 
 glm::vec2 ScreenSpaceToNDC(const glm::vec2 &mouse_pos)
 {
-    return {(mouse_pos.x - (screen_width / 2)) / (screen_width / 2),
-        ((screen_height - mouse_pos.y) - (screen_height / 2)) / (screen_height / 2)};
+    return {(mouse_pos.x - (static_cast<f32>(screen_width) / 2.0f)) / (static_cast<f32>(screen_width) / 2.0f),
+        ((screen_height - mouse_pos.y) - (static_cast<f32>(screen_height) / 2.0f)) / (static_cast<f32>(screen_height) / 2.0f)};
 }
 
 glm::ivec2 NDCToScreenSpace(const glm::vec2 &screen_space)
@@ -293,7 +293,7 @@ void InitPointSystem()
     // clang-format off
     float mvp[] = {
         1.0f, 0.0f, 0.0f, // color + padding float
-        10.0f, // point size
+        point_size, // point size
         // mvp matrix
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 1.0f, 0.0f, 0.0f,
@@ -335,6 +335,24 @@ void RenderFrame()
     device->EndPass();
 
     device->SwapBuffers(window);
+}
+
+class System {
+  public:
+    virtual ~System() = default;
+    virtual void Run() = 0;
+};
+
+static std::vector<std::unique_ptr<System>> _systems;
+
+void GlobalInit()
+{
+    _systems.push_back(nullptr);
+    _systems.push_back(nullptr);
+    _systems.push_back(nullptr);
+    _systems.push_back(nullptr);
+    _systems.push_back(nullptr);
+    _systems.push_back(nullptr);
 }
 
 int main(int argc, char **argv)
