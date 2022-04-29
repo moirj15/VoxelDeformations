@@ -1,0 +1,30 @@
+add_executable(BezierCurveManipulation
+        main.cpp
+)
+
+target_include_directories(BezierCurveManipulation
+        PRIVATE
+        ${CMAKE_SOURCE_DIR}/libs/glm
+        ${CMAKE_SOURCE_DIR}/libs/SDL2
+        ${CMAKE_SOURCE_DIR}/src/utils
+        )
+
+target_link_libraries(BezierCurveManipulation
+        focus
+        Setupapi.lib
+        ${CMAKE_SOURCE_DIR}/libs/SDL2-static.lib
+        ${CMAKE_SOURCE_DIR}/libs/SDL2main.lib
+        msvcrtd.lib
+        winmm.lib
+        imm32.lib
+        version.lib
+        d3d11.lib
+        d3d12.lib
+        libcmt.lib
+        dxgi.lib
+        d3dcompiler.lib
+        dxguid.lib
+        winmm.lib
+        gdi32
+        opengl32
+)

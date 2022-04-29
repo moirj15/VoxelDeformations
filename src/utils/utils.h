@@ -2,6 +2,7 @@
 #include <vector>
 #include <cstdio>
 #include <string>
+#include <glm/vec2.hpp>
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -68,5 +69,9 @@ inline std::vector<uint8_t> ReadEntireFileAsVector(const char *file)
     fclose(fp);
     return data;
 }
+
+glm::vec2 ScreenSpaceToNDC(const glm::vec2 &mouse_pos, int screen_width, int screen_height);
+
+glm::ivec2 NDCToScreenSpace(const glm::vec2 &screen_space, int screen_width, int screen_height);
 
 } // namespace utils
