@@ -11,6 +11,7 @@ target_include_directories(BezierCurveManipulation
 
 target_link_libraries(BezierCurveManipulation
         focus
+        utils
         Setupapi.lib
         ${CMAKE_SOURCE_DIR}/libs/SDL2-static.lib
         ${CMAKE_SOURCE_DIR}/libs/SDL2main.lib
